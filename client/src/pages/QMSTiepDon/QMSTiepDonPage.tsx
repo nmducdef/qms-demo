@@ -1,11 +1,10 @@
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useGetListQMSDanhSachChoKham } from '@/hooks/useDepartment'
-import { fakeQMSData } from '@/pages/QMSTiepDon/data-fake'
 import QMSTiepDonConfigPage from '@/pages/QMSTiepDon/QMSTiepDonConfigPage'
 import WaitScreenPage from '@/pages/QMSTiepDon/WaitScreenPage'
 import { qmsTiepDonConfigActions, selectQMSConfiguration } from '@/stores/slices/qms-tiep-don-config.slice'
-import { Stethoscope, UserCheck, Users, Clock } from 'lucide-react'
+import { Clock, Stethoscope, UserCheck, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
@@ -15,13 +14,13 @@ const QMSTiepDonPage = () => {
   const [clinicsData, setClinicsData] = useState<any[]>([])
   const [patientsData, setPatientsData] = useState<any>({})
 
-  const { data: realData } = useGetListQMSDanhSachChoKham({
+  const { data } = useGetListQMSDanhSachChoKham({
     maPhong: config.visibleClinicIds.join(','),
     maKhoa: config.department,
     numberRow: Number(config.roomsToShow)
   })
 
-  const data = fakeQMSData
+  console.log(data)
 
   useEffect(() => {
     if (!data) return
@@ -39,16 +38,32 @@ const QMSTiepDonPage = () => {
         acc[item.phongKham] = {
           current: item.qmsDangKham[0]?.benhNhanDangTiepDon
             ? {
-                so_kham: item.qmsDangKham[0].benhNhanDangTiepDon.so_Kham,
+                so_kham:
+                  item.qmsDangKham[0].benhNhanDangTiepDon.is_UuTien === '1'
+                    ? `A${item.qmsDangKham[0].benhNhanDangTiepDon.so_Kham}`
+                    : item.qmsDangKham[0].benhNhanDangTiepDon.so_Kham,
                 name: item.qmsDangKham[0].benhNhanDangTiepDon.ten_bn,
                 age: item.qmsDangKham[0].benhNhanDangTiepDon.nam_sinh
                   ? 2025 - Number(item.qmsDangKham[0].benhNhanDangTiepDon.nam_sinh)
                   : '?',
-                dob: item.qmsDangKham[0].benhNhanDangTiepDon.nam_sinh || '?'
+                dob: item.qmsDangKham[0].benhNhanDangTiepDon.nam_sinh || '?',
+                isPriority: item.qmsDangKham[0].benhNhanDangTiepDon.is_UuTien === '1'
               }
             : null,
-          waiting: item.qmsChoKham || [],
-          missed: item.qmsNho || []
+          waiting: item.qmsChoKham.flatMap((grp: any) =>
+            (grp.danhSachChoTiepDon || []).map((patient: any) => ({
+              ...patient,
+              so_Kham: patient.is_UuTien === '1' ? `A${patient.so_Kham}` : patient.so_Kham,
+              isPriority: patient.is_UuTien === '1'
+            }))
+          ),
+          missed: item.qmsNho.flatMap((grp: any) =>
+            (grp.danhSachNho || []).map((patient: any) => ({
+              ...patient,
+              so_Kham: patient.is_UuTien === '1' ? `A${patient.so_Kham}` : patient.so_Kham,
+              isPriority: patient.is_UuTien === '1'
+            }))
+          )
         }
         return acc
       },
@@ -145,7 +160,7 @@ const QMSTiepDonPage = () => {
                       <Stethoscope className='w-4 h-4' />
                     </div>
                     <div className='flex-1'>
-                      <div className='text-[22px] leading-tight uppercase tracking-wide'>
+                      <div className='text-[16px] leading-tight uppercase tracking-wide'>
                         {clinicIdToName[clinic.id] || clinic.department}
                       </div>
                     </div>
@@ -167,7 +182,7 @@ const QMSTiepDonPage = () => {
                         variant='destructive'
                         className='px-3 py-1 text-sm rounded-lg text-white flex items-center gap-1'
                       >
-                        {data.current.dob}
+                        {data.current ? data.current.dob : 'N/A'}
                       </Badge>
                     </div>
 
@@ -179,6 +194,11 @@ const QMSTiepDonPage = () => {
                               <span className='text-red-600 text-3xl'>{data.current.so_kham}</span> -{' '}
                               <span className='text-[25px]'>{data.current.name}</span>
                             </p>
+                            {data.current.isPriority && (
+                              <Badge variant='secondary' className='text-sm'>
+                                Ưu tiên
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -202,25 +222,28 @@ const QMSTiepDonPage = () => {
 
                     <div className='flex-1 overflow-y-auto space-y-2 pr-1'>
                       {data.waiting.length > 0 ? (
-                        data.waiting
-                          .flatMap((grp: any) => grp.danhSachChoTiepDon || [])
-                          .map((patient: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className='bg-gradient-to-r from-amber-50 to-yellow-100 hover:from-amber-100 hover:to-yellow-200 transition-colors p-3 rounded-lg border border-amber-200 flex-shrink-0'
-                            >
-                              <div className='flex items-center justify-between'>
-                                <p className='font-bold text-gray-900 text-xl truncate flex-1 mr-3'>
-                                  <span className='text-blue-700 text-2xl'>{patient.so_Kham}</span> - {patient.ten_bn}
-                                </p>
-                                <div className='flex items-center gap-2 flex-shrink-0'>
-                                  <Badge variant='destructive' className='text-[14px] bg-blue-600'>
-                                    {patient.nam_sinh || '?'}
+                        data.waiting.map((patient: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className='bg-gradient-to-r from-amber-50 to-yellow-100 hover:from-amber-100 hover:to-yellow-200 transition-colors p-3 rounded-lg border border-amber-200 flex-shrink-0'
+                          >
+                            <div className='flex items-center justify-between'>
+                              <p className='font-bold text-gray-900 text-xl truncate flex-1 mr-3'>
+                                <span className='text-blue-700 text-2xl'>{patient.so_Kham}</span> - {patient.ten_bn}
+                              </p>
+                              <div className='flex items-center gap-2 flex-shrink-0'>
+                                <Badge variant='destructive' className='text-[14px] bg-blue-600'>
+                                  {patient.nam_sinh || '?'}
+                                </Badge>
+                                {patient.isPriority && (
+                                  <Badge variant='secondary' className='text-sm'>
+                                    Ưu tiên
                                   </Badge>
-                                </div>
+                                )}
                               </div>
                             </div>
-                          ))
+                          </div>
+                        ))
                       ) : (
                         <div className='text-center py-8 text-gray-500 flex-1 flex items-center justify-center'>
                           <div>
@@ -247,27 +270,30 @@ const QMSTiepDonPage = () => {
                     <div className='h-[72px] overflow-hidden'>
                       {data.missed.length > 0 ? (
                         <div className='flex gap-3 animate-marquee whitespace-nowrap'>
-                          {data.missed
-                            .flatMap((grp: any) => grp.danhSachNho || [])
-                            .map((patient: any, idx: number) => (
-                              <div
-                                key={idx}
-                                className='flex-shrink-0 w-[200px] bg-white border border-red-200 rounded-lg shadow-sm p-3'
-                              >
-                                <div className='flex items-center justify-between mb-1'>
-                                  <p className='font-medium text-gray-800 truncate flex-1'>{patient.ten_bn}</p>
-                                  <span className='text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full'>
-                                    #{idx + 1}
-                                  </span>
-                                </div>
-                                <div className='flex items-center justify-between text-sm text-gray-600 mt-1'>
-                                  <span className='bg-gray-100 px-2 py-0.5 rounded'>
-                                    {patient.nam_sinh ? 2025 - Number(patient.nam_sinh) : '?'}T
-                                  </span>
-                                  <span className='bg-gray-100 px-2 py-0.5 rounded'>{patient.nam_sinh || '?'}</span>
-                                </div>
+                          {data.missed.map((patient: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className='flex-shrink-0 w-[200px] bg-white border border-red-200 rounded-lg shadow-sm p-3'
+                            >
+                              <div className='flex items-center justify-between mb-1'>
+                                <p className='font-medium text-gray-800 truncate flex-1'>{patient.ten_bn}</p>
+                                <span className='text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full'>
+                                  #{idx + 1}
+                                </span>
                               </div>
-                            ))}
+                              <div className='flex items-center justify-between text-sm text-gray-600 mt-1'>
+                                <span className='bg-gray-100 px-2 py-0.5 rounded'>
+                                  {patient.nam_sinh ? 2025 - Number(patient.nam_sinh) : '?'}T
+                                </span>
+                                <span className='bg-gray-100 px-2 py-0.5 rounded'>{patient.nam_sinh || '?'}</span>
+                                {patient.isPriority && (
+                                  <Badge variant='secondary' className='text-sm'>
+                                    Ưu tiên
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       ) : (
                         <div className='flex items-center justify-center h-full text-gray-400 text-sm py-6'>
